@@ -12,7 +12,7 @@ default = ["std"]
 std = ["dlc/std", "bitcoin/std"]
 no-std = ["bitcoin/no-std", "dlc/no-std"]
 parallel = ["rayon"]
-use-serde = ["serde", "dlc/use-serde"]
+use-serde = ["serde", "dlc/use-serde", "bitcoin/serde"]
 
 [dependencies]
 bitcoin = { version = "0.30.2", default-features = false }
