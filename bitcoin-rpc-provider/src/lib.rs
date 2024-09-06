@@ -8,13 +8,13 @@ use std::time::Duration;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::consensus::encode::Error as EncodeError;
 use bitcoin::hashes::serde;
-use bitcoin::psbt::PartiallySignedTransaction;
+use bitcoin::psbt::Psbt;
 use bitcoin::secp256k1::rand::thread_rng;
 use bitcoin::secp256k1::{PublicKey, SecretKey};
 use bitcoin::{
-    consensus::Decodable, network::constants::Network, Amount, PrivateKey, Transaction, Txid,
+    consensus::Decodable, Network, Amount, PrivateKey, Transaction, Txid,
 };
-use bitcoin::{Address, OutPoint, ScriptBuf, TxOut};
+use bitcoin::{Address, NetworkKind, OutPoint, ScriptBuf, TxOut};
 use bitcoincore_rpc::jsonrpc::serde_json;
 use bitcoincore_rpc::jsonrpc::serde_json::Value;
 use bitcoincore_rpc::{json, Auth, Client, RpcApi};
@@ -106,7 +106,7 @@ impl BitcoinCoreProvider {
     pub fn new_from_rpc_client(rpc_client: Client) -> Self {
         let client = Arc::new(Mutex::new(rpc_client));
         let mut fees: HashMap<ConfirmationTarget, AtomicU32> = HashMap::with_capacity(7);
-        fees.insert(ConfirmationTarget::OnChainSweep, AtomicU32::new(5000));
+        fees.insert(ConfirmationTarget::UrgentOnChainSweep, AtomicU32::new(5000));
         fees.insert(
             ConfirmationTarget::MinAllowedAnchorChannelRemoteFee,
             AtomicU32::new(MIN_FEERATE),
