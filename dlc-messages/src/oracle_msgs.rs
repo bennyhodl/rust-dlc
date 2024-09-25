@@ -226,7 +226,9 @@ impl OracleEvent {
         if expected_nb_nonces == self.oracle_nonces.len() {
             Ok(())
         } else {
-            Err(Error::InvalidArgument)
+            Err(Error::InvalidArgument(
+                "Nonces length does not match expected nones.".to_string(),
+            ))
         }
     }
 }

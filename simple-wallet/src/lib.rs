@@ -245,16 +245,20 @@ where
         let utxos = org_utxos
             .iter()
             .filter(|x| !x.reserved)
-            .map(|x| WeightedUtxo {
-                utxo: BdkUtxo::Local(LocalOutput {
-                    outpoint: x.outpoint,
-                    txout: x.tx_out.clone(),
-                    keychain: KeychainKind::External,
-                    is_spent: false,
-                    confirmation_time: ConfirmationTime::unconfirmed(1),
-                    derivation_index: 1,
-                }),
-                satisfaction_weight: Weight::from_wu(107),
+            .map(|x| {
+                WeightedUtxo {
+                    utxo: BdkUtxo::Local(LocalOutput {
+                        outpoint: x.outpoint,
+                        txout: x.tx_out.clone(),
+                        keychain: KeychainKind::External,
+                        is_spent: false,
+                        // @Tibo how do we want to handle this? Store the localoutput in storage?
+                        confirmation_time: ConfirmationTime::unconfirmed(1),
+                        // @Tibo how do we want to handle this? Store the localoutput in storage?
+                        derivation_index: 1,
+                    }),
+                    satisfaction_weight: Weight::from_wu(107),
+                }
             })
             .collect::<Vec<_>>();
         let coin_selection = OldestFirstCoinSelection;
@@ -266,14 +270,7 @@ where
             ScriptBuf::new_p2wpkh(&bitcoin::WPubkeyHash::hash(&dummy_pubkey.serialize()));
         let fee_rate = FeeRate::from_sat_per_vb(fee_rate).unwrap_or(FeeRate::BROADCAST_MIN);
         let selection = coin_selection
-            .coin_select(
-                Vec::new(),
-                utxos,
-                fee_rate,
-                amount,
-                &dummy_drain,
-                &mut bitcoin::key::rand::thread_rng(),
-            )
+            .coin_select(Vec::new(), utxos, fee_rate, amount, &dummy_drain)
             .map_err(|e| Error::WalletError(Box::new(e)))?;
         let mut res = Vec::new();
         for utxo in selection.selected {
