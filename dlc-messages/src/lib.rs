@@ -44,6 +44,7 @@ use channel::{
     SettleOffer, SignChannel,
 };
 use contract_msgs::ContractInfo;
+use dlc::dlc_input::DlcInputInfo;
 use dlc::{Error, TxInputInfo};
 use lightning::ln::msgs::DecodeError;
 use lightning::ln::wire::Type;
@@ -163,6 +164,22 @@ impl From<&FundingInput> for TxInputInfo {
             max_witness_len: (funding_input.max_witness_len as usize),
             redeem_script: funding_input.redeem_script.clone(),
             serial_id: funding_input.input_serial_id,
+        }
+    }
+}
+
+impl From<&FundingInput> for DlcInputInfo {
+    fn from(funding_input: &FundingInput) -> Self {
+        let fund_tx = Transaction::consensus_decode(&mut funding_input.prev_tx.as_slice()).unwrap();
+        Self {
+            fund_tx: fund_tx.clone(),
+            fund_vout: funding_input.prev_tx_vout,
+            local_fund_pubkey: funding_input.dlc_input.as_ref().unwrap().local_fund_pubkey,
+            remote_fund_pubkey: funding_input.dlc_input.as_ref().unwrap().remote_fund_pubkey,
+            fund_amount: fund_tx.output[funding_input.prev_tx_vout as usize].value,
+            max_witness_len: funding_input.max_witness_len as usize,
+            input_serial_id: funding_input.input_serial_id,
+            contract_id: funding_input.dlc_input.as_ref().unwrap().contract_id,
         }
     }
 }

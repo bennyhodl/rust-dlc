@@ -34,6 +34,7 @@ mod conversion_utils;
 pub mod error;
 pub mod manager;
 pub mod payout_curve;
+mod splice;
 mod utils;
 
 use bitcoin::psbt::Psbt;

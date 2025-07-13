@@ -43,7 +43,10 @@ use secp256k1_zkp::{
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+// use crate::dlc_input::calculate_total_dlc_input_amount;
+
 pub mod channel;
+pub mod dlc_input;
 pub mod secp_utils;
 pub mod util;
 
@@ -279,6 +282,8 @@ pub struct PartyParams {
     pub payout_serial_id: u64,
     /// A list of inputs to fund the contract
     pub inputs: Vec<TxInputInfo>,
+    /// A list of dlc inputs to be used
+    pub dlc_inputs: Vec<dlc_input::DlcInputInfo>,
     /// The sum of the inputs values.
     pub input_amount: Amount,
     /// The collateral put in the contract by the party
@@ -308,6 +313,8 @@ impl PartyParams {
             };
             return Ok((change_output, Amount::ZERO, Amount::ZERO));
         }
+
+        inputs_weight += dlc_input::get_dlc_inputs_weight(&self.dlc_inputs);
 
         for w in &self.inputs {
             let script_weight = util::redeem_script_to_script_sig(&w.redeem_script)
@@ -393,6 +400,69 @@ impl PartyParams {
 
         (tx_ins, serial_ids)
     }
+}
+
+/// Create the transactions for a DLC contract based on the provided parameters
+/// This function is used to create the transactions for a DLC contract when the
+/// offer and accept parameters are spliced together.
+pub fn create_spliced_dlc_transactions(
+    offer_params: &PartyParams,
+    accept_params: &PartyParams,
+    payouts: &[Payout],
+    refund_lock_time: u32,
+    fee_rate_per_vb: u64,
+    fund_lock_time: u32,
+    cet_lock_time: u32,
+    fund_output_serial_id: u64,
+) -> Result<DlcTransactions, Error> {
+    // Create enhanced party parameters that include DLC inputs as regular inputs
+    let mut enhanced_offer_params = offer_params.clone();
+    let mut enhanced_accept_params = accept_params.clone();
+
+    let offer_dlc_tx_inputs = offer_params
+        .dlc_inputs
+        .iter()
+        .map(|input| input.into())
+        .collect::<Vec<TxInputInfo>>();
+
+    let accept_dlc_tx_inputs = accept_params
+        .dlc_inputs
+        .iter()
+        .map(|input| input.into())
+        .collect::<Vec<TxInputInfo>>();
+
+    // Add DLC inputs to regular inputs
+    enhanced_offer_params.inputs.extend(offer_dlc_tx_inputs);
+    enhanced_accept_params.inputs.extend(accept_dlc_tx_inputs);
+
+    // Calculate total DLC input amounts
+    // let offer_dlc_amount = calculate_total_dlc_input_amount(&offer_params.dlc_inputs);
+    // let accept_dlc_amount = calculate_total_dlc_input_amount(&accept_params.dlc_inputs);
+
+    // // Add DLC amounts to input amounts
+    // enhanced_offer_params.input_amount = enhanced_offer_params
+    //     .input_amount
+    //     .checked_add(offer_dlc_amount)
+    //     .ok_or(Error::InvalidArgument)?;
+    // enhanced_accept_params.input_amount = enhanced_accept_params
+    //     .input_amount
+    //     .checked_add(accept_dlc_amount)
+    //     .ok_or(Error::InvalidArgument)?;
+
+    // Clear DLC inputs from enhanced params since they're now regular inputs
+    enhanced_offer_params.dlc_inputs.clear();
+    enhanced_accept_params.dlc_inputs.clear();
+
+    create_dlc_transactions(
+        &enhanced_offer_params,
+        &enhanced_accept_params,
+        payouts,
+        refund_lock_time,
+        fee_rate_per_vb,
+        fund_lock_time,
+        cet_lock_time,
+        fund_output_serial_id,
+    )
 }
 
 /// Create the transactions for a DLC contract based on the provided parameters
@@ -1270,6 +1340,7 @@ mod tests {
                     },
                     serial_id,
                 }],
+                dlc_inputs: vec![],
             },
             fund_privkey,
         )

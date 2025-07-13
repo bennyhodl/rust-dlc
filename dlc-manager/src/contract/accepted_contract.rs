@@ -111,18 +111,18 @@ mod tests {
 
     #[test]
     fn pnl_compute_test() {
-        let buf = include_bytes!("../../../dlc-sled-storage-provider/test_files/Accepted");
+        let buf = include_bytes!("../../test_inputs/Accepted");
         let accepted_contract: AcceptedContract = Readable::read(&mut Cursor::new(&buf)).unwrap();
         let cets = &accepted_contract.dlc_transactions.cets;
         assert_eq!(
             accepted_contract.compute_pnl(&cets[0]).unwrap(),
-            SignedAmount::from_sat(90000000)
+            SignedAmount::ZERO
         );
         assert_eq!(
             accepted_contract
                 .compute_pnl(&cets[cets.len() - 1])
                 .unwrap(),
-            SignedAmount::from_sat(-11000000)
+            SignedAmount::from_sat(101000000)
         );
     }
 }

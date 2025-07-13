@@ -22,8 +22,8 @@ use crate::{
     },
     error::Error,
     utils::get_new_temporary_id,
-    Blockchain, ChannelId, ContractId, ContractSigner, ContractSignerProvider, KeysId, Time,
-    Wallet,
+    Blockchain, ChannelId, ContractId, ContractSigner, ContractSignerProvider, KeysId, Storage,
+    Time, Wallet,
 };
 use bitcoin::{Amount, OutPoint, Script, ScriptBuf, Sequence, Transaction, TxIn, Witness};
 use dlc::{
@@ -97,6 +97,7 @@ where
         secp,
         contract.offer_collateral,
         total_collateral,
+        vec![],
         contract.fee_rate,
         wallet,
         &signer,
@@ -166,6 +167,7 @@ where
         secp,
         total_collateral - offered_contract.offer_params.collateral,
         total_collateral,
+        vec![],
         offered_contract.fee_rate_per_vb,
         wallet,
         &signer,
@@ -276,7 +278,7 @@ where
 /// to the given [`OfferedChannel`] and [`OfferedContract`], transforming them
 /// to a [`SignedChannel`] and [`SignedContract`], returning them as well as the
 /// [`SignChannel`] to be sent to the counter party.
-pub fn verify_and_sign_accepted_channel<W: Deref, SP: Deref, X: ContractSigner>(
+pub fn verify_and_sign_accepted_channel<W: Deref, X: ContractSigner, SP: Deref, S: Deref>(
     secp: &Secp256k1<All>,
     offered_channel: &OfferedChannel,
     offered_contract: &OfferedContract,
@@ -285,10 +287,12 @@ pub fn verify_and_sign_accepted_channel<W: Deref, SP: Deref, X: ContractSigner>(
     wallet: &W,
     signer_provider: &SP,
     chain_monitor: &Mutex<ChainMonitor>,
+    storage: &S,
 ) -> Result<(SignedChannel, SignedContract, SignChannel), Error>
 where
     W::Target: Wallet,
     SP::Target: ContractSignerProvider<Signer = X>,
+    S::Target: Storage,
 {
     let (tx_input_infos, input_amount) =
         crate::conversion_utils::get_tx_input_infos(&accept_channel.funding_inputs)?;
@@ -300,6 +304,7 @@ where
         payout_script_pubkey: accept_channel.payout_spk.clone(),
         payout_serial_id: accept_channel.payout_serial_id,
         inputs: tx_input_infos,
+        dlc_inputs: vec![],
         input_amount,
         collateral: accept_channel.accept_collateral,
     };
@@ -313,7 +318,8 @@ where
     let offer_own_base_secret =
         signer_provider.get_secret_key_for_pubkey(&offered_channel.party_points.own_basepoint)?;
 
-    let offer_own_sk = derive_private_key(
+    // TODO: use the correct signer for the offer
+    let _offer_own_sk = derive_private_key(
         secp,
         &offered_channel.per_update_point,
         &offer_own_base_secret,
@@ -368,11 +374,13 @@ where
         &accept_cet_adaptor_signatures,
         buffer_transaction.output[0].value,
         wallet,
-        &offer_own_sk,
+        &offer_fund_sk,
         Some(&buffer_script_pubkey),
         Some(accept_revoke_params.own_pk.inner),
         &dlc_transactions,
         Some(channel_id),
+        storage,
+        signer_provider,
     )?;
 
     verify_tx_adaptor_signature(
@@ -453,16 +461,20 @@ where
 /// Verify that the given [`SignChannel`] message is valid with respect to the
 /// given [`AcceptedChannel`] and [`AcceptedContract`], transforming them
 /// to a [`SignedChannel`] and [`SignedContract`], and returning them.
-pub fn verify_signed_channel<W: Deref>(
+pub fn verify_signed_channel<W: Deref, S: Deref, SP: Deref, X: ContractSigner>(
     secp: &Secp256k1<All>,
     accepted_channel: &AcceptedChannel,
     accepted_contract: &AcceptedContract,
     sign_channel: &SignChannel,
     wallet: &W,
     chain_monitor: &Mutex<ChainMonitor>,
+    storage: &S,
+    signer_provider: &SP,
 ) -> Result<(SignedChannel, SignedContract, Transaction), Error>
 where
     W::Target: Wallet,
+    S::Target: Storage,
+    SP::Target: ContractSignerProvider<Signer = X>,
 {
     let own_publish_pk = accepted_channel
         .accept_base_points
@@ -494,6 +506,8 @@ where
         Some(counter_own_pk),
         wallet,
         Some(accepted_channel.channel_id),
+        storage,
+        signer_provider,
     )?;
 
     chain_monitor.lock().unwrap().add_tx(
@@ -1343,7 +1357,7 @@ where
 /// [`RenewAccept`] message, verifying the message and updating the state of the
 /// channel and associated contract the same time. Expects the channel to be in
 /// [`SignedChannelState::RenewOffered`] state.
-pub fn verify_renew_accept_and_confirm<W: Deref, SP: Deref, X: ContractSigner, T: Deref>(
+pub fn verify_renew_accept_and_confirm<W: Deref, SP: Deref, T: Deref, S: Deref>(
     secp: &Secp256k1<All>,
     renew_accept: &RenewAccept,
     signed_channel: &mut SignedChannel,
@@ -1353,10 +1367,12 @@ pub fn verify_renew_accept_and_confirm<W: Deref, SP: Deref, X: ContractSigner, T
     wallet: &W,
     signer_provider: &SP,
     time: &T,
+    storage: &S,
 ) -> Result<(SignedContract, RenewConfirm), Error>
 where
     W::Target: Wallet,
-    SP::Target: ContractSignerProvider<Signer = X>,
+    SP::Target: ContractSignerProvider,
+    S::Target: Storage,
     T::Target: Time,
 {
     let own_base_secret_key =
@@ -1405,7 +1421,8 @@ where
         Sequence(cet_nsequence),
     )?;
 
-    let offer_own_sk = derive_private_key(secp, &offer_per_update_point, &own_base_secret_key);
+    // TODO: use the correct signer for the offer
+    let _offer_own_sk = derive_private_key(secp, &offer_per_update_point, &own_base_secret_key);
     let cet_adaptor_signatures: Vec<_> = (&renew_accept.cet_adaptor_signatures).into();
 
     let (signed_contract, cet_adaptor_signatures) = verify_accepted_and_sign_contract_internal(
@@ -1417,11 +1434,13 @@ where
         &cet_adaptor_signatures,
         buffer_transaction.output[0].value,
         wallet,
-        &offer_own_sk,
+        &contract_signer,
         Some(&buffer_script_pubkey),
         Some(accept_revoke_params.own_pk.inner),
         &dlc_transactions,
         Some(signed_channel.channel_id),
+        storage,
+        signer_provider,
     )?;
 
     let own_buffer_adaptor_signature = get_tx_adaptor_signature(
@@ -1463,7 +1482,7 @@ where
 /// channel and associated contract the same time. Expects the channel to be in
 /// [`SignedChannelState::RenewAccepted`] state.
 ///
-pub(crate) fn verify_renew_confirm_and_finalize<S: Deref, T: Deref, W: Deref>(
+pub(crate) fn verify_renew_confirm_and_finalize<S: Deref, T: Deref, W: Deref, ST: Deref>(
     secp: &Secp256k1<All>,
     signed_channel: &mut SignedChannel,
     accepted_contract: &AcceptedContract,
@@ -1473,11 +1492,13 @@ pub(crate) fn verify_renew_confirm_and_finalize<S: Deref, T: Deref, W: Deref>(
     wallet: &W,
     signer: &S,
     chain_monitor: &Mutex<ChainMonitor>,
+    storage: &ST,
 ) -> Result<(SignedContract, RenewFinalize), Error>
 where
     T::Target: Time,
     S::Target: ContractSignerProvider,
     W::Target: Wallet,
+    ST::Target: Storage,
 {
     let (
         &offer_per_update_point,
@@ -1529,6 +1550,8 @@ where
         Some(counter_own_pk),
         wallet,
         Some(signed_channel.channel_id),
+        storage,
+        signer,
     )?;
 
     let prev_offer_per_update_point = signed_channel.counter_per_update_point;
