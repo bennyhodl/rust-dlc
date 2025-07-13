@@ -93,6 +93,28 @@ impl_type!(REJECT, Reject, 43024);
     derive(serde::Serialize, serde::Deserialize),
     serde(rename_all = "camelCase")
 )]
+/// Contains information about a DLC input to be used in a funding transaction.
+pub struct DlcInput {
+    /// The local funding public key.
+    pub local_fund_pubkey: PublicKey,
+    /// The remote funding public key.
+    pub remote_fund_pubkey: PublicKey,
+    /// Contract id of the DLC input.
+    pub contract_id: [u8; 32],
+}
+
+impl_dlc_writeable!(DlcInput, {
+    (local_fund_pubkey, writeable),
+    (remote_fund_pubkey, writeable),
+    (contract_id, writeable)
+});
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "use-serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "camelCase")
+)]
 /// Contains information about a specific input to be used in a funding transaction,
 /// as well as its corresponding on-chain UTXO.
 pub struct FundingInput {
@@ -115,6 +137,8 @@ pub struct FundingInput {
     pub max_witness_len: u16,
     /// The redeem script of the previous UTXO.
     pub redeem_script: ScriptBuf,
+    /// The optional sub-type of including a DLC input.
+    pub dlc_input: Option<DlcInput>,
 }
 
 impl_dlc_writeable!(FundingInput, {
@@ -123,7 +147,8 @@ impl_dlc_writeable!(FundingInput, {
     (prev_tx_vout, writeable),
     (sequence, writeable),
     (max_witness_len, writeable),
-    (redeem_script, writeable)
+    (redeem_script, writeable),
+    (dlc_input, option)
 });
 
 impl From<&FundingInput> for TxInputInfo {
@@ -630,6 +655,19 @@ mod tests {
     fn valid_offer_message_passes_validation() {
         let input = include_str!("./test_inputs/offer_msg.json");
         let valid_offer: OfferDlc = serde_json::from_str(input).unwrap();
+        valid_offer
+            .validate(SECP256K1, 86400 * 7, 86400 * 14)
+            .expect("to validate valid offer messages.");
+    }
+
+    #[test]
+    fn valid_offer_message_passes_with_dlc_input() {
+        let input = include_str!("./test_inputs/offer_msg_with_dlc_input.json");
+        let valid_offer: OfferDlc = serde_json::from_str(input).unwrap();
+
+        for input in &valid_offer.funding_inputs {
+            assert!(input.dlc_input.is_some());
+        }
         valid_offer
             .validate(SECP256K1, 86400 * 7, 86400 * 14)
             .expect("to validate valid offer messages.");

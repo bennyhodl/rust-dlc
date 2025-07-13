@@ -133,6 +133,7 @@ where
             sequence,
             max_witness_len,
             redeem_script: utxo.redeem_script,
+            dlc_input: None,
         };
         total_input += prev_tx.output[prev_tx_vout as usize].value;
         funding_tx_info.push((&funding_input).into());

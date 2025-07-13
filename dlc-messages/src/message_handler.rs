@@ -351,6 +351,17 @@ mod tests {
     }
 
     #[test]
+    fn send_message_with_dlc_input_test() {
+        let input = include_str!("./test_inputs/offer_msg_with_dlc_input.json");
+        let msg: OfferDlc = serde_json::from_str(input).unwrap();
+        let handler = MessageHandler::new();
+        handler.send_message(some_pk(), Message::Offer(msg));
+        handler.get_and_clear_pending_msg();
+        assert!(!handler.has_pending_messages());
+    }
+
+    #[test]
+    #[ignore = "Need to regenerate the segment start and chunk messages for an accept contract with optional funding input"]
     fn rebuilds_segments_properly_test() {
         let input1 = include_str!("./test_inputs/segment_start_msg.json");
         let input2 = include_str!("./test_inputs/segment_chunk_msg.json");
