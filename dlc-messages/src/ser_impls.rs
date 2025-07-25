@@ -3,6 +3,7 @@
 use bitcoin::Address;
 use bitcoin::Network;
 use bitcoin::SignedAmount;
+use dlc::dlc_input::DlcInputInfo;
 use dlc::{EnumerationPayout, PartyParams, Payout, TxInputInfo};
 use lightning::io::Read;
 use lightning::ln::msgs::DecodeError;
@@ -651,6 +652,7 @@ where
 impl_dlc_writeable_external!(Payout, payout, { (offer, writeable), (accept, writeable) });
 impl_dlc_writeable_external!(EnumerationPayout, enum_payout, { (outcome, string), (payout, { cb_writeable, payout::write, payout::read} )});
 impl_dlc_writeable_external!(TxInputInfo, tx_input_info, { (outpoint, writeable), (max_witness_len, usize), (redeem_script, writeable), (serial_id, writeable)});
+impl_dlc_writeable_external!(DlcInputInfo, dlc_input_info, { (fund_tx, writeable), (fund_vout, writeable), (local_fund_pubkey, writeable), (remote_fund_pubkey, writeable), (fund_amount, writeable), (max_witness_len, usize), (input_serial_id, writeable), (contract_id, writeable)});
 impl_dlc_writeable_external!(PartyParams, party_params, {
     (fund_pubkey, writeable),
     (change_script_pubkey, writeable),
@@ -658,6 +660,7 @@ impl_dlc_writeable_external!(PartyParams, party_params, {
     (payout_script_pubkey, writeable),
     (payout_serial_id, writeable),
     (inputs, { vec_cb, tx_input_info::write, tx_input_info::read }),
+    (dlc_inputs, { vec_cb, dlc_input_info::write, dlc_input_info::read }),
     (input_amount, writeable),
     (collateral, writeable)
 });

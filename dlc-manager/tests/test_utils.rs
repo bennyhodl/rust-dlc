@@ -329,6 +329,128 @@ pub fn get_single_funded_test_params(
     }
 }
 
+pub fn get_splice_in_enum_contract_descriptor() -> ContractDescriptor {
+    let outcome_payouts: Vec<_> = enum_outcomes()
+        .iter()
+        .enumerate()
+        .map(|(i, x)| {
+            let payout = if i % 2 == 0 {
+                Payout {
+                    offer: TOTAL_COLLATERAL + Amount::from_sat(50_000_000),
+                    accept: Amount::ZERO,
+                }
+            } else {
+                Payout {
+                    offer: Amount::ZERO,
+                    accept: TOTAL_COLLATERAL + Amount::from_sat(50_000_000),
+                }
+            };
+            EnumerationPayout {
+                outcome: x.to_owned(),
+                payout,
+            }
+        })
+        .collect();
+    ContractDescriptor::Enum(EnumDescriptor { outcome_payouts })
+}
+
+pub fn get_splice_out_enum_contract_descriptor() -> ContractDescriptor {
+    let outcome_payouts: Vec<_> = enum_outcomes()
+        .iter()
+        .enumerate()
+        .map(|(i, x)| {
+            let payout = if i % 2 == 0 {
+                Payout {
+                    offer: TOTAL_COLLATERAL - Amount::from_sat(50_000_000),
+                    accept: Amount::ZERO,
+                }
+            } else {
+                Payout {
+                    offer: Amount::ZERO,
+                    accept: TOTAL_COLLATERAL - Amount::from_sat(50_000_000),
+                }
+            };
+            EnumerationPayout {
+                outcome: x.to_owned(),
+                payout,
+            }
+        })
+        .collect();
+    ContractDescriptor::Enum(EnumDescriptor { outcome_payouts })
+}
+
+pub fn get_splice_in_test_params(oracles: Vec<MockOracle>) -> TestParams {
+    let contract_descriptor = get_splice_in_enum_contract_descriptor();
+    let contract_info = ContractInputInfo {
+        contract_descriptor,
+        oracles: OracleInput {
+            public_keys: oracles.iter().map(|x| x.get_public_key()).collect(),
+            event_id: EVENT_ID.to_owned(),
+            threshold: 1,
+        },
+    };
+
+    let contract_input = ContractInput {
+        offer_collateral: TOTAL_COLLATERAL + Amount::from_sat(50_000_000),
+        accept_collateral: Amount::ZERO,
+        fee_rate: 2,
+        contract_infos: vec![contract_info],
+    };
+
+    TestParams {
+        oracles,
+        contract_input,
+    }
+}
+
+pub fn get_splice_out_test_params(oracles: Vec<MockOracle>) -> TestParams {
+    let contract_descriptor = get_splice_out_enum_contract_descriptor();
+    let contract_info = ContractInputInfo {
+        contract_descriptor,
+        oracles: OracleInput {
+            public_keys: oracles.iter().map(|x| x.get_public_key()).collect(),
+            event_id: EVENT_ID.to_owned(),
+            threshold: 1,
+        },
+    };
+
+    let contract_input = ContractInput {
+        offer_collateral: TOTAL_COLLATERAL - Amount::from_sat(50_000_000),
+        accept_collateral: Amount::ZERO,
+        fee_rate: 2,
+        contract_infos: vec![contract_info],
+    };
+
+    TestParams {
+        oracles,
+        contract_input,
+    }
+}
+
+pub fn new_oracle_test_params(oracles: Vec<MockOracle>) -> TestParams {
+    let contract_descriptor = get_splice_in_enum_contract_descriptor();
+    let contract_info = ContractInputInfo {
+        contract_descriptor,
+        oracles: OracleInput {
+            public_keys: oracles.iter().map(|x| x.get_public_key()).collect(),
+            event_id: EVENT_ID.to_owned(),
+            threshold: 1,
+        },
+    };
+
+    let contract_input = ContractInput {
+        offer_collateral: TOTAL_COLLATERAL + Amount::from_sat(50_000_000),
+        accept_collateral: Amount::ZERO,
+        fee_rate: 2,
+        contract_infos: vec![contract_info],
+    };
+
+    TestParams {
+        oracles,
+        contract_input,
+    }
+}
+
 pub fn get_polynomial_payout_curve_pieces(min_nb_digits: usize) -> Vec<PayoutFunctionPiece> {
     vec![
         PayoutFunctionPiece::PolynomialPayoutCurvePiece(
